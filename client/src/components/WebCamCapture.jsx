@@ -21,6 +21,10 @@ const WebCamCapture = () => {
   const [capturedImage, setCapturedImage] = useState(null);
   const [showGetWheelID, setShowGetWheelID] = useState(false);
   const [isStopped, setIsStopped] = useState(false);
+  const [predictionResult, setPredictionResult] = useState(null);
+  const [showGetAnotherIDButton, setShowGetAnotherIDButton] = useState(false);
+  const [showTrainWheelMessage, setShowTrainWheelMessage] = useState(false);
+  const [showModalWheelId, setShowModalWheelId] = useState(false);
 
   const tagChange = (event) => {
     setTagValue(event.target.value);
@@ -87,39 +91,38 @@ const WebCamCapture = () => {
   const handleCapture = async () => {
     if (!capturedImage) {
       console.error("No captured image to upload.");
-      alert("No image captured to upload.");
       return;
     }
 
-    const formData = new FormData();
-    const response = await fetch(capturedImage);
-    const blob = await response.blob();
-    formData.append("image", blob, "captured-image.png");
-
     try {
+      const formData = new FormData();
+      const response = await fetch(capturedImage);
+      const blob = await response.blob();
+      formData.append("image", blob, "captured-image.png");
+
       const result = await axios.post("/api/v1/predict", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      console.log(result.data);
+      const { wheelId, probability } = result.data;
 
-      // Handle the result from the backend (reset wheelId or show message)
-      if (result.data && result.data.wheelId) {
-        alert(`Prediction success: ${result.data.wheelId}`);
-
-        setCapturedImage(null);
-        setHasError(false);
+      if (probability >= 80) {
+        setPredictionResult(
+          `Prediction Success: ${wheelId} with ${probability}% accuracy.`
+        );
+        setShowGetAnotherIDButton(true);
       } else {
-        alert("Prediction failed. Wheel not found.");
-        setHasError(true);
+        setPredictionResult(
+          `Low Accuracy: ${probability}%. You need to train the wheel.`
+        );
+        setShowTrainWheelMessage(true);
       }
     } catch (error) {
-      console.error("Error uploading the image:", error);
-      alert("Error uploading the image for prediction.");
-      setHasError(true);
+      console.error("Error predicting the image:", error);
     }
+    setShowModalWheelId(true);
   };
 
   const startRecording = () => {
@@ -215,6 +218,13 @@ const WebCamCapture = () => {
     // when the close error modal button is clicked
     setShowErrorModal(false);
     setErrorMessage(""); // clear the error when close the error modal
+  };
+
+  const resetModal = () => {
+    setShowModalWheelId(false);
+    setPredictionResult(null);
+    setShowGetAnotherIDButton(false);
+    setShowTrainWheelMessage(false);
   };
 
   useEffect(() => {
@@ -444,6 +454,43 @@ const WebCamCapture = () => {
             </div>
           </div>
         )}
+      </Modal>
+      <Modal
+        show={showModalWheelId}
+        onHide={resetModal}
+        size="md"
+        className="mt-5"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Prediction Result</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div
+            style={{
+              fontSize: "24px",
+              fontWeight: "bold",
+              textAlign: "center",
+            }}
+          >
+            {predictionResult}
+          </div>
+          {showGetAnotherIDButton && (
+            <Button variant="primary" className="mt-3" onClick={resetModal}>
+              Get Another ID
+            </Button>
+          )}
+          {showTrainWheelMessage && (
+            <div
+              style={{
+                marginTop: "20px",
+                textAlign: "center",
+                fontWeight: "bold",
+              }}
+            >
+              Train the wheel for better accuracy.
+            </div>
+          )}
+        </Modal.Body>
       </Modal>
     </Container>
   );
